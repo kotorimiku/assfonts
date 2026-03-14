@@ -1,0 +1,17 @@
+[package]
+name = "assfonts"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+clap = { version = "4.5.32", features = ["derive"] }
+regex = "1.11.1"
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = "1.0.140"
+thiserror = "2.0.18"
+walkdir = "2.5.0"
+ttf-parser = "0.25.1"
+allsorts = "0.16.1"
+rayon = "1.10.0"
+dashmap = "6.1.0"
+color-eyre = "0.6"

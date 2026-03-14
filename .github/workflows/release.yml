@@ -1,0 +1,122 @@
+name: Publish Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  get-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get version number
+        id: get_version
+        run: |
+          version=$(python3 -c 'import tomllib; print(tomllib.load(open("Cargo.toml","rb"))["package"]["version"])')
+          echo "version=$version" >> $GITHUB_OUTPUT
+
+  get-name:
+    runs-on: ubuntu-latest
+    outputs:
+      name: ${{ steps.get_name.outputs.name }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get package name
+        id: get_name
+        run: |
+          name=$(python3 -c 'import tomllib; print(tomllib.load(open("Cargo.toml","rb"))["package"]["name"])')
+          echo "name=$name" >> $GITHUB_OUTPUT
+
+  build:
+    needs: [get-version, get-name]
+    runs-on: ${{ matrix.platform }}
+    env:
+      VERSION: ${{ needs.get-version.outputs.version }}
+      NAME: ${{ needs.get-name.outputs.name }}
+    strategy:
+      matrix:
+        include:
+          - platform: "macos-latest"
+            arch: "aarch64"
+            target: "aarch64-apple-darwin"
+          - platform: "macos-latest"
+            arch: "x86_64"
+            target: "x86_64-apple-darwin"
+          - platform: "ubuntu-22.04"
+            target: "x86_64-unknown-linux-gnu"
+          - platform: "windows-latest"
+            target: "x86_64-pc-windows-msvc"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build
+        run: cargo build --release
+
+      - name: Package (Windows)
+        if: matrix.platform == 'windows-latest'
+        shell: bash
+        run: |
+          cd target/release
+          7z a ${{ env.NAME }}_v${{ env.VERSION }}_${{ matrix.target }}.zip ${{ env.NAME }}.exe
+          cd -
+          mkdir -p artifacts
+          cp target/release/${{ env.NAME }}_v${{ env.VERSION }}_${{ matrix.target }}.zip artifacts/
+
+      - name: Package (macOS/Linux)
+        if: matrix.platform != 'windows-latest'
+        shell: bash
+        run: |
+          cd target/release
+          tar -czf ${{ env.NAME }}_v${{ env.VERSION }}_${{ matrix.target }}.tar.gz ${{ env.NAME }}
+          cd -
+          mkdir -p artifacts
+          cp target/release/${{ env.NAME }}_v${{ env.VERSION }}_${{ matrix.target }}.tar.gz artifacts/
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-assets-${{ matrix.platform }}-${{ matrix.arch || 'default' }}
+          path: artifacts/*
+
+  release:
+    name: Create Release
+    needs: [build, get-version]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          name: Release v${{ needs.get-version.outputs.version }}
+          files: |
+            artifacts/*
+          draft: true
+          prerelease: false
+          generate_release_notes: true
