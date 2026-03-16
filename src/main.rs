@@ -1,20 +1,12 @@
-mod ass;
-mod cff_fix;
-mod cli;
-mod commands;
-mod embed;
-mod error;
-mod font;
-mod subset;
-
-use clap::Parser;
-
-use crate::{
+use assfonts::{
     cli::{Cli, Commands},
     commands::{run_build, run_process},
+    error::Result,
 };
+use clap::Parser;
 
-fn main() -> Result<(), color_eyre::Report> {
+fn main() -> Result<()> {
+    color_eyre::install()?;
     let cli = Cli::parse();
     match cli.command {
         Some(Commands::Build(options)) => run_build(options),
