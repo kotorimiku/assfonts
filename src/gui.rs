@@ -1,6 +1,9 @@
 use std::{
     path::PathBuf,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
     thread,
 };
 
@@ -15,7 +18,7 @@ pub fn run_gui() -> Result<()> {
     let app = AppWindow::new()?;
 
     let log_buffer: Arc<Mutex<String>> = Arc::new(Mutex::new(String::new()));
-    let running_flag: Arc<Mutex<bool>> = Arc::new(Mutex::new(false));
+    let running = Arc::new(AtomicBool::new(false));
 
     // Browse callbacks
     {
@@ -114,7 +117,7 @@ pub fn run_gui() -> Result<()> {
     {
         let app_weak = app.as_weak();
         let log_buffer = log_buffer.clone();
-        let running_flag = running_flag.clone();
+        let running = running.clone();
 
         app.on_run_process(move || {
             let app = match app_weak.upgrade() {
@@ -163,7 +166,7 @@ pub fn run_gui() -> Result<()> {
                 dbpath: PathBuf::from(app.get_db_path().to_string()),
                 strict: app.get_strict_mode(),
                 allow_missing_sample: app.get_allow_missing_sample(),
-                allow_error_fonts: app.get_allow_missing_fonts(),
+                allow_missing_fonts: app.get_allow_missing_fonts(),
                 report: app.get_generate_report(),
                 force: app.get_force_overwrite(),
             };
@@ -171,7 +174,6 @@ pub fn run_gui() -> Result<()> {
             // Update UI state
             app.set_is_running(true);
             app.set_status_text("Processing...".into());
-            app.set_progress(0.0);
 
             {
                 let mut log = log_buffer.lock().unwrap();
@@ -180,44 +182,41 @@ pub fn run_gui() -> Result<()> {
                 app.set_log_text(log.clone().into());
             }
 
-            // Store running flag
-            {
-                let mut running = running_flag.lock().unwrap();
-                *running = true;
-            }
-
             // Spawn processing thread
             let app_weak_inner = app.as_weak();
             let log_buffer_inner = log_buffer.clone();
-            let running_flag_inner = running_flag.clone();
+            let running = running.clone();
 
             thread::spawn(move || {
-                let result = run_process(options);
+                running.store(true, Ordering::Relaxed);
+                let result = run_process(options, running.clone(), |progress| {
+                    let app_weak = app_weak_inner.clone();
+                    let _ = app_weak.upgrade_in_event_loop(move |app| {
+                        app.set_progress(progress.into());
+                    });
+                });
 
                 // Update UI on completion
-                if let Some(app) = app_weak_inner.upgrade() {
+                let _ = app_weak_inner.upgrade_in_event_loop(move |app| {
                     let mut log = log_buffer_inner.lock().unwrap();
 
                     match result {
                         Ok(()) => {
                             log.push_str("\nProcess completed successfully.\n");
                             app.set_status_text("Completed".into());
-                            app.set_progress(1.0);
                         }
                         Err(e) => {
                             log.push_str(&format!("\nError: {}\n", e));
                             app.set_status_text("Error occurred".into());
+                            println!("Error during processing: {:?}", e);
                         }
                     }
 
-                    {
-                        let mut running = running_flag_inner.lock().unwrap();
-                        *running = false;
-                    }
+                    running.store(false, Ordering::Relaxed);
 
                     app.set_is_running(false);
                     app.set_log_text(log.clone().into());
-                }
+                });
             });
         });
     }
@@ -225,14 +224,10 @@ pub fn run_gui() -> Result<()> {
     // Stop callback
     {
         let app_weak = app.as_weak();
-        let running_flag = running_flag.clone();
+        let running = running.clone();
 
         app.on_stop_process(move || {
-            {
-                let mut running = running_flag.lock().unwrap();
-                *running = false;
-            }
-
+            running.store(false, Ordering::Relaxed);
             if let Some(app) = app_weak.upgrade() {
                 app.set_is_running(false);
                 app.set_status_text("Stopped".into());

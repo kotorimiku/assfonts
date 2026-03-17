@@ -2,6 +2,10 @@ use std::{
     collections::{HashMap, HashSet},
     fs,
     path::PathBuf,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering::Relaxed},
+    },
 };
 
 use color_eyre::eyre::WrapErr;
@@ -88,7 +92,11 @@ pub fn run_build(options: BuildOptions) -> Result<()> {
     Ok(())
 }
 
-pub fn run_process(options: RunOptions) -> Result<()> {
+pub fn run_process(
+    options: RunOptions,
+    running: Arc<AtomicBool>,
+    complete_once: impl Fn(u8) + Sync,
+) -> Result<()> {
     validate_output_dir(&options.output)?;
 
     let mut ass_files: Vec<(PathBuf, PathBuf)> = Vec::new();
@@ -111,12 +119,22 @@ pub fn run_process(options: RunOptions) -> Result<()> {
 
     let fonts = load_fonts_for_run(&options)?;
     let font_bytes_cache: DashMap<PathBuf, Vec<u8>> = DashMap::new();
+    let complete_count = Arc::new(std::sync::atomic::AtomicUsize::new(0));
 
     let reports: Vec<RunReport> = ass_files
         .par_iter()
         .map(|(input, base_dir)| {
-            process_single_input(input, base_dir, &options, &fonts, &font_bytes_cache)
-                .wrap_err(format!("ass path: {}", input.display()))
+            if !running.load(Relaxed) {
+                bail!(AssfontsError::Interrupted());
+            }
+
+            let result = process_single_input(input, base_dir, &options, &fonts, &font_bytes_cache)
+                .wrap_err(format!("ass path: {}", input.display()));
+
+            complete_count.fetch_add(1, Relaxed);
+            complete_once((complete_count.load(Relaxed) / ass_files.len()) as u8);
+
+            result
         })
         .collect::<Result<Vec<_>>>()?;
 
@@ -142,7 +160,7 @@ fn process_single_input(
     let mut glyph_coverage = Vec::new();
     let (grouped, missing_fonts) = build_pending_processes(&analysis, fonts);
 
-    if options.strict && !missing_fonts.is_empty() {
+    if options.strict && !missing_fonts.is_empty() && !options.allow_missing_fonts {
         bail!(AssfontsError::MissingFonts(
             input.to_path_buf(),
             missing_fonts
@@ -279,7 +297,7 @@ fn build_coverage_report(
     let (subset_bytes, error) = match subset_bytes {
         Ok(bytes) => (bytes, None),
         Err(err) => {
-            if options.strict && !options.allow_error_fonts {
+            if options.strict && !options.allow_missing_fonts {
                 return Err(err).wrap_err(format!("font path: {}", record.path.display()));
             }
             (original_bytes.to_vec(), Some(err))

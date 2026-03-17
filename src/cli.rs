@@ -78,7 +78,7 @@ pub struct RunOptions {
     pub allow_missing_sample: bool,
 
     #[arg(long = "allow-missing-fonts", help = "Allow missing fonts")]
-    pub allow_error_fonts: bool,
+    pub allow_missing_fonts: bool,
 
     #[arg(
         short,

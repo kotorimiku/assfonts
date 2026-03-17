@@ -39,6 +39,9 @@ pub enum AssfontsError {
 
     #[error("file already exists: {0}")]
     FileExists(PathBuf),
+
+    #[error("process was interrupted")]
+    Interrupted(),
 }
 
 #[macro_export]
