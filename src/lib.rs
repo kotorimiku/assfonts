@@ -6,6 +6,8 @@ pub mod commands;
 pub mod embed;
 pub mod error;
 pub mod font;
-#[cfg(feature = "gui")]
+#[cfg(feature = "desktop")]
 pub mod gui;
+#[cfg(feature = "desktop")]
+mod gui_backend;
 pub mod subset;

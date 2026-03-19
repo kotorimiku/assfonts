@@ -131,8 +131,13 @@ pub fn run_process(
             let result = process_single_input(input, base_dir, &options, &fonts, &font_bytes_cache)
                 .wrap_err(format!("ass path: {}", input.display()));
 
-            complete_count.fetch_add(1, Relaxed);
-            complete_once((complete_count.load(Relaxed) / ass_files.len()) as u8);
+            let completed = complete_count.fetch_add(1, Relaxed) + 1;
+            let progress = if ass_files.is_empty() {
+                100
+            } else {
+                ((completed * 100) / ass_files.len()).min(100) as u8
+            };
+            complete_once(progress);
 
             result
         })

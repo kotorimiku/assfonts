@@ -2,17 +2,24 @@
 name = "assfonts"
 version = "0.1.0"
 edition = "2024"
+default-run = "assfonts_gui"
 
 [features]
-default = ["cli", "gui"]
+default = ["desktop", "cli"]
+# The feature that are only required for the web = ["dioxus/web"] build target should be optional and only enabled in the web = ["dioxus/web"] feature
+web = ["dioxus/web"]
+# The feature that are only required for the desktop = ["dioxus/desktop"] build target should be optional and only enabled in the desktop = ["dioxus/desktop"] feature
+desktop = ["dioxus/desktop"]
+# The feature that are only required for the mobile = ["dioxus/mobile"] build target should be optional and only enabled in the mobile = ["dioxus/mobile"] feature
+mobile = ["dioxus/mobile"]
+# The feature that are only required for the server = ["dioxus/server"] build target should be optional and only enabled in the server = ["dioxus/server"] feature
+server = ["dioxus/server"]
 cli = ["clap"]
-gui = ["slint", "slint-build", "rfd"]
 
 [[bin]]
 name = "assfonts_gui"
 path = "src/bin/gui.rs"
-required-features = ["gui"]
-
+required-features = ["desktop"]
 
 [dependencies]
 clap = { version = "4.6.0", features = ["derive"], optional = true }
@@ -25,11 +32,10 @@ allsorts = "0.16.1"
 rayon = "1.10.0"
 dashmap = "6.1.0"
 color-eyre = "0.6"
-slint = { version = "1.15.1", optional = true }
-rfd = { version = "0.17.2", optional = true }
-
-[build-dependencies]
-slint-build = { version = "1.15.1", optional = true }
+dioxus = { version = "0.7.1", features = ["router"] }
+dirs = "6.0.0"
+rfd = "0.17.2"
+tokio = { version = "1", features = ["time"] }
 
 [profile.release]
 strip = true

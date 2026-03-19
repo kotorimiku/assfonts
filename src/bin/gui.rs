@@ -3,5 +3,6 @@ use color_eyre::eyre::Result;
 
 fn main() -> Result<()> {
     color_eyre::install()?;
-    gui::run_gui()
+    gui::run_gui();
+    Ok(())
 }

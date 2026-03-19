@@ -2,7 +2,7 @@
 
 简体中文 | [English](README.md)
 
-一个用 Rust 编写的 ASS 字幕字体索引、匹配、子集化和嵌入的命令行工具。
+一个用 Rust 编写的 ASS 字幕字体索引、匹配、子集化和嵌入工具，提供桌面 GUI 和命令行两种使用方式。
 
 ## 功能特性
 
@@ -12,6 +12,7 @@
 - **字体嵌入**：将子集化后的字体直接嵌入到 ASS 文件的 `[Fonts]` 区域
 - **多文件处理**：并行处理多个 ASS 文件
 - **TTC/OTC 支持**：支持从 TrueType/OpenType Collection 字体中提取单个字体面
+- **桌面 GUI**：通过 Dioxus 桌面界面执行字幕处理和字体索引构建
 
 ## 安装
 
@@ -25,12 +26,32 @@ cargo build --release
 
 ## 使用方法
 
+### 桌面 GUI
+
+启动桌面图形界面：
+
+```bash
+cargo run --bin assfonts_gui
+```
+
+当前 GUI 包含：
+- ASS 处理工作区，支持路径选择与运行选项
+- 字体索引构建工作区
+- ASS 处理任务的进度显示与取消
+- 每次运行后的结果摘要面板
+
+如果你想通过 `cargo run` 使用命令行，请显式指定 CLI 二进制，因为当前包的默认运行目标是 GUI：
+
+```bash
+cargo run --bin assfonts -- -h
+```
+
 ### 构建字体索引
 
 生成字体索引文件以便快速查询：
 
 ```bash
-assfonts build -f /path/to/fonts -d /path/to/db
+assfonts build -f /path/to/fonts -o /path/to/db
 ```
 
 这将在指定目录中创建 `fonts.index.json` 文件。
@@ -76,8 +97,18 @@ assfonts -i video.ass -o ./out -f C:/Windows/Fonts
 assfonts -i ./subtitles -o ./output -f /usr/share/fonts
 
 # 使用预构建的字体索引
-assfonts build -f /usr/share/fonts -d ~/.assfonts
+assfonts build -f /usr/share/fonts -o ~/.assfonts
 assfonts -i video.ass -o ./out -d ~/.assfonts
+```
+
+### 分别构建 CLI 和 GUI
+
+```bash
+# CLI 二进制
+cargo build --release --bin assfonts
+
+# GUI 二进制
+cargo build --release --bin assfonts_gui
 ```
 
 ### 生成报告

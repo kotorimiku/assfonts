@@ -2,7 +2,7 @@
 
 English | [简体中文](README_zh_CN.md)
 
-A Rust CLI tool for ASS subtitle font indexing, matching, subsetting, and embedding.
+A Rust desktop and CLI tool for ASS subtitle font indexing, matching, subsetting, and embedding.
 
 ## Features
 
@@ -12,6 +12,7 @@ A Rust CLI tool for ASS subtitle font indexing, matching, subsetting, and embedd
 - **Font Embedding**: Embed subsetted fonts directly into ASS files as `[Fonts]` section
 - **Multi-file Processing**: Process multiple ASS files in parallel
 - **TTC/OTC Support**: Extract individual faces from TrueType/OpenType Collection fonts
+- **Desktop GUI**: Run subtitle processing and index building from a Dioxus desktop interface
 
 ## Installation
 
@@ -25,12 +26,32 @@ cargo build --release
 
 ## Usage
 
+### Desktop GUI
+
+Launch the desktop application:
+
+```bash
+cargo run --bin assfonts_gui
+```
+
+The GUI currently includes:
+- ASS processing workspace with path pickers and runtime options
+- Font index building workspace
+- Progress feedback and cancel support for ASS processing
+- Result summary panel after each run
+
+If you want to use the CLI with `cargo run`, specify the CLI binary explicitly because the package default target launches the GUI:
+
+```bash
+cargo run --bin assfonts -- -h
+```
+
 ### Build Font Index
 
 Build a font index file for fast font lookups:
 
 ```bash
-assfonts build -f /path/to/fonts -d /path/to/db
+assfonts build -f /path/to/fonts -o /path/to/db
 ```
 
 This creates `fonts.index.json` in the specified directory.
@@ -76,8 +97,18 @@ assfonts -i video.ass -o ./out -f C:/Windows/Fonts
 assfonts -i ./subtitles -o ./output -f /usr/share/fonts
 
 # Use pre-built font index
-assfonts build -f /usr/share/fonts -d ~/.assfonts
+assfonts build -f /usr/share/fonts -o ~/.assfonts
 assfonts -i video.ass -o ./out -d ~/.assfonts
+```
+
+### Build Specific Binaries
+
+```bash
+# CLI binary
+cargo build --release --bin assfonts
+
+# GUI binary
+cargo build --release --bin assfonts_gui
 ```
 
 ### With Report Generation
