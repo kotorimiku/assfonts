@@ -19,3 +19,9 @@ script = []
 # Javascript code file
 # serve: [dev-server] only
 script = []
+
+[bundle]
+# The list of files to include in the bundle. These can contain globs.
+identifier = "com.mycompany"
+publisher = "MyCompany"
+resources = ["assets/dx-components-theme.css"]

@@ -1,5 +1,4 @@
 use std::{
-    path::PathBuf,
     sync::{
         Arc, Mutex,
         atomic::{AtomicBool, Ordering},
@@ -19,7 +18,7 @@ use crate::{
     },
 };
 
-const APP_CSS: &str = include_str!("../assets/styling/main.css");
+const APP_CSS: &str = include_str!("../../assets/styling/main.css");
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum WorkspaceTab {
@@ -100,28 +99,8 @@ impl TaskPanelState {
     }
 }
 
-pub fn run_gui() {
-    let data_dir = webview_data_directory();
-    dioxus::LaunchBuilder::desktop()
-        .with_cfg(
-            dioxus::desktop::Config::new()
-                .with_data_directory(data_dir)
-                .with_disable_context_menu(true),
-        )
-        .launch(App);
-}
-
-fn webview_data_directory() -> PathBuf {
-    let base_dir = dirs::data_local_dir()
-        .or_else(dirs::data_dir)
-        .or_else(|| std::env::current_dir().ok())
-        .unwrap_or_else(|| PathBuf::from("."));
-
-    base_dir.join("assfonts.webview")
-}
-
 #[component]
-fn App() -> Element {
+pub fn App() -> Element {
     let mut active_tab = use_signal(|| WorkspaceTab::Process);
     let process_form = use_signal(ProcessFormState::default);
     let build_form = use_signal(BuildFormState::default);

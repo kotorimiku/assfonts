@@ -1,8 +1,8 @@
-use assfonts::gui;
+use assfonts::ui;
 use color_eyre::eyre::Result;
 
 fn main() -> Result<()> {
     color_eyre::install()?;
-    gui::run_gui();
+    ui::run_gui();
     Ok(())
 }

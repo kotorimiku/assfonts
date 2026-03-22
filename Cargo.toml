@@ -15,6 +15,7 @@ mobile = ["dioxus/mobile"]
 # The feature that are only required for the server = ["dioxus/server"] build target should be optional and only enabled in the server = ["dioxus/server"] feature
 server = ["dioxus/server"]
 cli = ["clap"]
+bundle = []
 
 [[bin]]
 name = "assfonts_gui"
@@ -36,6 +37,7 @@ dioxus = { version = "0.7.1", features = ["router"] }
 dirs = "6.0.0"
 rfd = "0.17.2"
 tokio = { version = "1", features = ["time"] }
+dioxus-primitives = { git = "https://github.com/DioxusLabs/components", version = "0.0.1", default-features = false }
 
 [profile.release]
 strip = true
