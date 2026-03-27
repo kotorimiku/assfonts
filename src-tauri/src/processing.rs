@@ -132,7 +132,7 @@ pub fn run_process(
                 .wrap_err(format!("ass path: {}", input.display()));
 
             complete_count.fetch_add(1, Relaxed);
-            complete_once((complete_count.load(Relaxed) / ass_files.len()) as u8);
+            complete_once((complete_count.load(Relaxed) * 100 / ass_files.len()) as u8);
 
             result
         })

@@ -23,7 +23,8 @@ pub enum Commands {
     Build(BuildOptions),
 }
 
-#[derive(Debug, Args, Clone)]
+#[derive(Debug, Args, Clone, serde::Deserialize)]
+#[cfg_attr(feature = "gui", derive(specta::Type))]
 pub struct BuildOptions {
     #[arg(short = 'f', long = "fontpath", required = true, num_args = 1.., help = "Path to font files")]
     pub fontpaths: Vec<PathBuf>,
@@ -37,7 +38,8 @@ pub struct BuildOptions {
     pub output: PathBuf,
 }
 
-#[derive(Debug, Args, Clone)]
+#[derive(Debug, Args, Clone, serde::Deserialize)]
+#[cfg_attr(feature = "gui", derive(specta::Type))]
 pub struct RunOptions {
     #[arg(short = 'i', long = "input", required = true, num_args = 1.., help = "Input ASS files or directories")]
     pub inputs: Vec<PathBuf>,

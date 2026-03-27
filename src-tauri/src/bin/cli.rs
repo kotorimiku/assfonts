@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
-use assfonts::{
+use assfonts_lib::{
     cli::{Cli, Commands},
-    commands::{run_build, run_process},
     error::Result,
+    processing::{run_build, run_process},
 };
 use clap::Parser;
 

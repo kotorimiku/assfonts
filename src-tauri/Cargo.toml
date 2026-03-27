@@ -1,0 +1,52 @@
+[package]
+name = "assfonts"
+version = "0.1.0"
+description = "A Tauri App"
+authors = ["you"]
+edition = "2024"
+default-run = "assfonts"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+# The `_lib` suffix may seem redundant but it is necessary
+# to make the lib name unique and wouldn't conflict with the bin name.
+# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
+name = "assfonts_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+# [[bin]]
+# name = "assfonts"
+
+[features]
+default = ["gui", "cli"]
+gui = ["tauri-build", "tauri", "tauri-plugin-opener", "tauri-plugin-dialog"]
+cli = ["clap"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [], optional = true }
+
+[dependencies]
+tauri = { version = "2", features = [], optional = true }
+tauri-plugin-opener = { version = "2", optional = true }
+tauri-plugin-dialog = { version = "2", optional = true }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+specta = { version = "2.0.0-rc" }
+tauri-specta = { version = "2.0.0-rc", features = ["derive", "typescript"] }
+specta-typescript = { version = "0.0.9" }
+
+clap = { version = "4.6.0", features = ["derive"], optional = true }
+thiserror = "2.0.18"
+walkdir = "2.5.0"
+ttf-parser = "0.25.1"
+allsorts = "0.16.1"
+rayon = "1.10.0"
+dashmap = "6.1.0"
+color-eyre = "0.6"
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1
+panic = "abort"
