@@ -1,5 +1,6 @@
 use std::sync::{Arc, atomic::AtomicBool};
 
+use color_eyre::eyre;
 use tauri::Emitter;
 
 use crate::{
@@ -7,20 +8,36 @@ use crate::{
     processing,
 };
 
+#[derive(Debug, serde::Serialize, specta::Type)]
+pub struct CommandError(pub String);
+
+impl From<eyre::Error> for CommandError {
+    fn from(err: eyre::Error) -> Self {
+        Self(
+            err.chain()
+                .map(|cause| cause.to_string())
+                .collect::<Vec<_>>()
+                .join(" -> "),
+        )
+    }
+}
+
+pub type Result<T> = std::result::Result<T, CommandError>;
+
 #[tauri::command]
 #[specta::specta]
-pub async fn run_build(options: BuildOptions) -> Result<(), String> {
-    processing::run_build(options).map_err(|e| e.to_string())
+pub async fn run_build(options: BuildOptions) -> Result<()> {
+    Ok(processing::run_build(options)?)
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn run_process(app_handle: tauri::AppHandle, options: RunOptions) -> Result<(), String> {
+pub async fn run_process(app_handle: tauri::AppHandle, options: RunOptions) -> Result<()> {
     let running = Arc::new(AtomicBool::new(true));
-    let once = |processes| {
+    let progress = |progress| {
         app_handle
-            .emit("process-updated", processes)
+            .emit("process-updated", progress)
             .expect("Failed to emit process update");
     };
-    processing::run_process(options, running, once).map_err(|e| e.to_string())
+    Ok(processing::run_process(options, running, progress)?)
 }

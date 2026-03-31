@@ -24,6 +24,7 @@ async runProcess(options: RunOptions) : Promise<null> {
 /** user-defined types **/
 
 export type BuildOptions = { fontpaths: string[]; output: string }
+export type CommandError = string
 export type RunOptions = { inputs: string[]; output: string; fontpaths: string[] | null; dbpath: string; strict: boolean; allow_missing_sample: boolean; allow_missing_fonts: boolean; report: boolean; force: boolean }
 
 /** tauri-specta globals **/

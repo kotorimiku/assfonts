@@ -1,12 +1,9 @@
-name: Publish Release
+name: 'publish'
 
 on:
   push:
     tags:
       - 'v*'
-
-env:
-  CARGO_TERM_COLOR: always
 
 jobs:
   get-version:
@@ -19,75 +16,99 @@ jobs:
       - name: Get version number
         id: get_version
         run: |
-          version=$(python3 -c 'import tomllib; print(tomllib.load(open("Cargo.toml","rb"))["package"]["version"])')
+          version=$(jq -r '.version' src-tauri/tauri.conf.json)
           echo "version=$version" >> $GITHUB_OUTPUT
 
-  get-name:
+  get-product-name:
     runs-on: ubuntu-latest
     outputs:
-      name: ${{ steps.get_name.outputs.name }}
+      product_name: ${{ steps.get_product_name.outputs.product_name }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Get package name
-        id: get_name
+      - name: Get product name
+        id: get_product_name
         run: |
-          name=$(python3 -c 'import tomllib; print(tomllib.load(open("Cargo.toml","rb"))["package"]["name"])')
-          echo "name=$name" >> $GITHUB_OUTPUT
+          product_name=$(jq -r '.productName' src-tauri/tauri.conf.json)
+          echo "product_name=$product_name" >> $GITHUB_OUTPUT
 
-  build:
-    needs: [get-version, get-name]
-    runs-on: ${{ matrix.platform }}
+  publish-tauri:
+    needs: [get-version, get-product-name]
     env:
       VERSION: ${{ needs.get-version.outputs.version }}
-      NAME: ${{ needs.get-name.outputs.name }}
+      PRODUCT_NAME: ${{ needs.get-product-name.outputs.product_name }}
+    permissions:
+      contents: write
     strategy:
+      fail-fast: false
       matrix:
         include:
-          - platform: "macos-latest"
-            arch: "aarch64"
-            target: "aarch64-apple-darwin"
-          - platform: "macos-latest"
-            arch: "x86_64"
-            target: "x86_64-apple-darwin"
-          - platform: "ubuntu-22.04"
-            target: "x86_64-unknown-linux-gnu"
-          - platform: "windows-latest"
-            target: "x86_64-pc-windows-msvc"
+          - platform: 'macos-latest'
+            arch: 'aarch64'
+            args: '--target aarch64-apple-darwin'
+          - platform: 'macos-latest'
+            arch: 'x86_64'
+            args: '--target x86_64-apple-darwin'
+          - platform: 'ubuntu-22.04'
+            args: ''
+          - platform: 'windows-latest'
+            args: ''
 
+    runs-on: ${{ matrix.platform }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+
+      - name: setup bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
 
       - name: install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
+      - name: install dependencies (ubuntu only)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: install frontend dependencies
+        run: bun install
+
       - uses: Swatinem/rust-cache@v2
 
-      - name: Build
-        run: cargo build --release
+      - name: build
+        uses: tauri-apps/tauri-action@v0
+        with:
+          args: ${{ matrix.args }}
 
-      - name: Package (Windows)
+      - name: Create artifacts directory
+        run: mkdir -p artifacts
+
+      - name: Copy windows to release assets
         if: matrix.platform == 'windows-latest'
-        shell: bash
         run: |
-          cd target/release
-          7z a ${{ env.NAME }}_v${{ env.VERSION }}_${{ matrix.target }}.zip ${{ env.NAME }}.exe
+          cd src-tauri/target/release
+          7z a ${{ env.PRODUCT_NAME }}_${{ env.VERSION }}_windows_x64-portable.zip ${{ env.PRODUCT_NAME }}.exe
           cd -
-          mkdir -p artifacts
-          cp target/release/${{ env.NAME }}_v${{ env.VERSION }}_${{ matrix.target }}.zip artifacts/
+          cp ${{ env.PRODUCT_NAME }}_${{ env.VERSION }}_windows_x64-portable.zip artifacts/${{ env.PRODUCT_NAME }}_${{ env.VERSION }}_windows_x64-portable.zip
 
-      - name: Package (macOS/Linux)
-        if: matrix.platform != 'windows-latest'
-        shell: bash
+      - name: Copy linux to release assets
+        if: matrix.platform == 'ubuntu-22.04'
         run: |
-          cd target/release
-          tar -czf ${{ env.NAME }}_v${{ env.VERSION }}_${{ matrix.target }}.tar.gz ${{ env.NAME }}
+          cd src-tauri/target/release
+          tar -czf ${{ env.PRODUCT_NAME }}_${{ env.VERSION }}_linux_amd64.tar.gz ${{ env.PRODUCT_NAME }}
           cd -
-          mkdir -p artifacts
-          cp target/release/${{ env.NAME }}_v${{ env.VERSION }}_${{ matrix.target }}.tar.gz artifacts/
+          cp ${{ env.PRODUCT_NAME }}_${{ env.VERSION }}_linux_amd64.tar.gz artifacts/${{ env.PRODUCT_NAME }}_${{ env.VERSION }}_linux_amd64.tar.gz
+
+      - name: Copy macos to release assets
+        if: matrix.platform == 'macos-latest'
+        env:
+          ARCH_ALIAS: ${{ matrix.arch == 'x86_64' && 'x64' || matrix.arch }}
+        run: |
+          cp src-tauri/target/${{ matrix.arch }}-apple-darwin/release/bundle/dmg/${{ env.PRODUCT_NAME }}_${{ env.VERSION }}_${{ env.ARCH_ALIAS }}.dmg artifacts/${{ env.PRODUCT_NAME }}_${{ env.VERSION }}_macos_${{ matrix.arch }}.dmg
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -95,21 +116,19 @@ jobs:
           name: release-assets-${{ matrix.platform }}-${{ matrix.arch || 'default' }}
           path: artifacts/*
 
-  release:
-    name: Create Release
-    needs: [build, get-version]
+  create-release:
+    needs: [publish-tauri, get-version]
     runs-on: ubuntu-latest
     permissions:
       contents: write
-
     steps:
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
-          path: artifacts
+          path: artifacts/
           merge-multiple: true
 
-      - name: Create Release
+      - name: Create GitHub Release
+        id: create_release
         uses: softprops/action-gh-release@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

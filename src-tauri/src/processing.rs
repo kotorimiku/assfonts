@@ -95,7 +95,7 @@ pub fn run_build(options: BuildOptions) -> Result<()> {
 pub fn run_process(
     options: RunOptions,
     running: Arc<AtomicBool>,
-    complete_once: impl Fn(u8) + Sync,
+    progress: impl Fn(u8) + Sync,
 ) -> Result<()> {
     validate_output_dir(&options.output)?;
 
@@ -132,7 +132,7 @@ pub fn run_process(
                 .wrap_err(format!("ass path: {}", input.display()));
 
             complete_count.fetch_add(1, Relaxed);
-            complete_once((complete_count.load(Relaxed) * 100 / ass_files.len()) as u8);
+            progress((complete_count.load(Relaxed) * 100 / ass_files.len()) as u8);
 
             result
         })
