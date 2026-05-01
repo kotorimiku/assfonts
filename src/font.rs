@@ -4,7 +4,7 @@ use std::{
 };
 
 use serde::{Deserialize, Serialize};
-use ttf_parser::{Face, fonts_in_collection, name_id};
+use ttf_parser::{Face, PlatformId, fonts_in_collection, name_id};
 use walkdir::WalkDir;
 
 use crate::{
@@ -136,8 +136,11 @@ fn discover_from_file(path: &Path) -> Vec<FontRecord> {
 
 fn collect_aliases(face: &Face<'_>, fallback_name: &str) -> Vec<String> {
     let mut set = BTreeSet::new();
+    println!("----");
 
     for name in face.names() {
+        println!("{:?}", decode_name_text(&name));
+        println!("{:?}", name);
         if !matches!(
             name.name_id,
             name_id::TYPOGRAPHIC_FAMILY
@@ -148,11 +151,8 @@ fn collect_aliases(face: &Face<'_>, fallback_name: &str) -> Vec<String> {
             continue;
         }
 
-        if let Some(text) = name.to_string() {
-            let trimmed = text.trim();
-            if !trimmed.is_empty() {
-                set.insert(trimmed.to_string());
-            }
+        if let Some(text) = decode_name_text(&name) {
+            set.insert(text);
         }
     }
 
@@ -161,6 +161,104 @@ fn collect_aliases(face: &Face<'_>, fallback_name: &str) -> Vec<String> {
     }
 
     set.into_iter().collect()
+}
+
+fn decode_name_text(name: &ttf_parser::name::Name<'_>) -> Option<String> {
+    if let Some(text) = name.to_string() {
+        let trimmed = text.trim();
+        if !trimmed.is_empty() {
+            return Some(trimmed.to_string());
+        }
+    }
+    let decode_name = match (name.platform_id, name.encoding_id) {
+        (PlatformId::Windows, 2) => {
+            let (text, had_errors) = encoding_rs::SHIFT_JIS.decode_without_bom_handling(name.name);
+            if had_errors {
+                None
+            } else {
+                let t = text.trim();
+                if t.is_empty() {
+                    None
+                } else {
+                    Some(t.to_string())
+                }
+            }
+        }
+        (PlatformId::Windows, 3) => {
+            let (text, had_errors) = encoding_rs::GBK.decode_without_bom_handling(name.name);
+            if had_errors {
+                None
+            } else {
+                let t = text.trim();
+                if t.is_empty() {
+                    None
+                } else {
+                    Some(t.to_string())
+                }
+            }
+        }
+        (PlatformId::Windows, 4) => {
+            let (text, had_errors) = encoding_rs::BIG5.decode_without_bom_handling(name.name);
+            if had_errors {
+                None
+            } else {
+                let t = text.trim();
+                if t.is_empty() {
+                    None
+                } else {
+                    Some(t.to_string())
+                }
+            }
+        }
+        (PlatformId::Macintosh, 0) => {
+            let (text, had_errors) = encoding_rs::MACINTOSH.decode_without_bom_handling(name.name);
+            if had_errors {
+                None
+            } else {
+                let t = text.trim();
+                if t.is_empty() {
+                    None
+                } else {
+                    Some(t.to_string())
+                }
+            }
+        }
+        // default: try UTF-16BE fallback
+        _ => None,
+    };
+
+    if decode_name.is_none() {
+        return decode_utf16be_fallback(name.name);
+    }
+
+    decode_name
+}
+
+// Some fonts store UTF-16BE text in name records but don't set the platform/encoding
+// in a way `ttf-parser` recognizes as Unicode. As a last resort try interpreting
+// the raw bytes as UTF-16BE and decode them.
+fn decode_utf16be_fallback(bytes: &[u8]) -> Option<String> {
+    if !bytes.len().is_multiple_of(2) || bytes.is_empty() {
+        return None;
+    }
+
+    let mut v: Vec<u16> = Vec::with_capacity(bytes.len() / 2);
+    for chunk in bytes.chunks(2) {
+        let be = u16::from_be_bytes([chunk[0], chunk[1]]);
+        v.push(be);
+    }
+
+    match String::from_utf16(&v) {
+        Ok(s) => {
+            let trimmed = s.trim();
+            if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed.to_string())
+            }
+        }
+        Err(_) => None,
+    }
 }
 
 fn fallback_record(path: &Path, fallback_name: &str) -> FontRecord {
