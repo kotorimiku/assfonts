@@ -136,11 +136,8 @@ fn discover_from_file(path: &Path) -> Vec<FontRecord> {
 
 fn collect_aliases(face: &Face<'_>, fallback_name: &str) -> Vec<String> {
     let mut set = BTreeSet::new();
-    println!("----");
 
     for name in face.names() {
-        println!("{:?}", decode_name_text(&name));
-        println!("{:?}", name);
         if !matches!(
             name.name_id,
             name_id::TYPOGRAPHIC_FAMILY
