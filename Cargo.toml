@@ -1,6 +1,6 @@
 [package]
 name = "assfonts"
-version = "0.1.0"
+version = "0.1.2"
 edition = "2024"
 default-run = "assfonts_gui"
 
@@ -29,7 +29,7 @@ serde_json = "1.0.140"
 thiserror = "2.0.18"
 walkdir = "2.5.0"
 ttf-parser = "0.25.1"
-allsorts = "0.16.1"
+allsorts = "0.17.0"
 rayon = "1.10.0"
 dashmap = "6.1.0"
 color-eyre = "0.6"
@@ -40,7 +40,7 @@ tokio = { version = "1", features = ["time"] }
 dioxus-primitives = { git = "https://github.com/DioxusLabs/components", version = "0.0.1", default-features = false }
 
 [profile.release]
-strip = true
-lto = true
 codegen-units = 1
+lto = true
 panic = "abort"
+strip = true
