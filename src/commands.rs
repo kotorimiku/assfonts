@@ -7,10 +7,9 @@ use std::{
 use color_eyre::eyre::WrapErr;
 use dashmap::DashMap;
 use rayon::prelude::*;
+use rusqlite::params;
 use serde::Serialize;
 use ttf_parser::Face;
-
-use rusqlite::params;
 
 use crate::{
     ass::{AssAnalysis, FontRequest, analyze_ass},
@@ -20,8 +19,8 @@ use crate::{
     embed::{EmbeddedFont, render_ass_with_fonts},
     error::{AssfontsError, Result},
     font::{
-        FontRecord, discover_fonts, extract_face_as_standalone_sfnt, match_best_font,
-        normalize_font_name, supported_font_extension, discover_from_file,
+        FontRecord, discover_fonts, discover_from_file, extract_face_as_standalone_sfnt,
+        match_best_font, normalize_font_name, supported_font_extension,
     },
     subset,
 };
@@ -103,7 +102,8 @@ pub fn run_build(options: BuildOptions) -> Result<()> {
 
     let tx = conn.transaction()?;
     {
-        let mut stmt_check = tx.prepare("SELECT mtime, file_size FROM fonts WHERE path = ?1 LIMIT 1")?;
+        let mut stmt_check =
+            tx.prepare("SELECT mtime, file_size FROM fonts WHERE path = ?1 LIMIT 1")?;
         let mut stmt_del = tx.prepare("DELETE FROM fonts WHERE path = ?1")?;
         let mut stmt_ins_font = tx.prepare(
             "INSERT INTO fonts (path, face_index, display_name, normalized_name, inferred_weight, is_italic, mtime, file_size)
@@ -111,7 +111,7 @@ pub fn run_build(options: BuildOptions) -> Result<()> {
         )?;
         let mut stmt_ins_alias = tx.prepare(
             "INSERT INTO aliases (path, face_index, alias, normalized_alias)
-             VALUES (?1, ?2, ?3, ?4)"
+             VALUES (?1, ?2, ?3, ?4)",
         )?;
 
         let mut current_valid_paths = std::collections::HashSet::new();
@@ -662,7 +662,8 @@ fn load_fonts_from_db_on_demand(
             let inferred_weight: i32 = row.get(4)?;
             let is_italic_val: i32 = row.get(5)?;
 
-            let mut stmt_aliases = conn.prepare("SELECT alias FROM aliases WHERE path = ?1 AND face_index = ?2")?;
+            let mut stmt_aliases =
+                conn.prepare("SELECT alias FROM aliases WHERE path = ?1 AND face_index = ?2")?;
             let mut alias_rows = stmt_aliases.query(params![path_str, face_index])?;
             let mut aliases = Vec::new();
             while let Some(alias_row) = alias_rows.next()? {
