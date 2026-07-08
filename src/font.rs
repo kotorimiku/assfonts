@@ -548,8 +548,7 @@ mod tests {
         data.resize(40, 0);
 
         let err = resolve_face_offset(&data, 1).expect_err("should reject out of bounds");
-        let inner = err.downcast_ref::<AssfontsError>();
-        assert!(matches!(inner, Some(AssfontsError::Font(_))));
+        assert!(matches!(err, AssfontsError::Font(_)));
     }
 
     #[test]

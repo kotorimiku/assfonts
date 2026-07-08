@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use color_eyre::eyre;
 use thiserror::Error;
 
-pub type Result<T> = eyre::Result<T>;
+pub type Result<T> = std::result::Result<T, AssfontsError>;
 
 #[derive(Debug, Error)]
 pub enum AssfontsError {
@@ -39,10 +39,19 @@ pub enum AssfontsError {
 
     #[error("file already exists: {0}")]
     FileExists(PathBuf),
+
+    #[error("other error: {0}")]
+    Other(#[from] eyre::Report),
 }
 
 #[macro_export]
 macro_rules! bail {
+    ($fmt:literal, $($arg:tt)*) => {
+        return Err($crate::error::AssfontsError::Other(::color_eyre::eyre::eyre!($fmt, $($arg)*)))
+    };
+    ($msg:literal) => {
+        return Err($crate::error::AssfontsError::Other(::color_eyre::eyre::eyre!($msg)))
+    };
     ($error:expr) => {
         return Err(::std::convert::Into::into($error))
     };

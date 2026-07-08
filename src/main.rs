@@ -14,10 +14,12 @@ use crate::{
     commands::{run_build, run_process},
 };
 
-fn main() -> Result<(), color_eyre::Report> {
+fn main() -> color_eyre::Result<()> {
+    color_eyre::install()?;
     let cli = Cli::parse();
     match cli.command {
         Some(Commands::Build(options)) => run_build(options),
         None => run_process(cli.run),
-    }
+    }?;
+    Ok(())
 }

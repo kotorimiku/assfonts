@@ -117,6 +117,7 @@ pub fn run_process(options: RunOptions) -> Result<()> {
         .map(|(input, base_dir)| {
             process_single_input(input, base_dir, &options, &fonts, &font_bytes_cache)
                 .wrap_err(format!("ass path: {}", input.display()))
+                .map_err(AssfontsError::from)
         })
         .collect::<Result<Vec<_>>>()?;
 
@@ -280,7 +281,7 @@ fn build_coverage_report(
         Ok(bytes) => (bytes, None),
         Err(err) => {
             if options.strict && !options.allow_error_fonts {
-                return Err(err).wrap_err(format!("font path: {}", record.path.display()));
+                return Err(err);
             }
             (original_bytes.to_vec(), Some(err))
         }
@@ -298,8 +299,7 @@ fn build_coverage_report(
         return Err(AssfontsError::Font(format!(
             "Font '{}' is missing required characters: {:?}",
             record.display_name, missing_sample
-        )))
-        .wrap_err(format!("font path: {}", record.path.display()));
+        )));
     }
 
     let coverage = match options.report {
