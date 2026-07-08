@@ -40,8 +40,21 @@ pub enum AssfontsError {
     #[error("file already exists: {0}")]
     FileExists(PathBuf),
 
+    #[error("database error: {0}")]
+    Database(#[from] rusqlite::Error),
+
     #[error("other error: {0}")]
     Other(#[from] eyre::Report),
+}
+
+impl AssfontsError {
+    #[track_caller]
+    pub fn into_report(self) -> color_eyre::eyre::Report {
+        match self {
+            AssfontsError::Other(report) => report,
+            err => color_eyre::eyre::Report::new(err),
+        }
+    }
 }
 
 #[macro_export]

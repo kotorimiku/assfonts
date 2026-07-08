@@ -1,5 +1,5 @@
 [env]
-RUST_BACKTRACE = "1"
+RUST_BACKTRACE = "0"
 
 [alias]
 testi = "test -- --ignored --nocapture"

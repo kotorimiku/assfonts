@@ -7,27 +7,24 @@ use std::{
 use color_eyre::eyre::WrapErr;
 use dashmap::DashMap;
 use rayon::prelude::*;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use ttf_parser::Face;
+
+use rusqlite::params;
 
 use crate::{
     ass::{AssAnalysis, FontRequest, analyze_ass},
     bail,
     cli::{BuildOptions, RunOptions},
+    db,
     embed::{EmbeddedFont, render_ass_with_fonts},
     error::{AssfontsError, Result},
     font::{
         FontRecord, discover_fonts, extract_face_as_standalone_sfnt, match_best_font,
-        normalize_font_name,
+        normalize_font_name, supported_font_extension, discover_from_file,
     },
     subset,
 };
-
-#[derive(Debug, Serialize, Deserialize)]
-struct BuildIndex {
-    total_fonts: usize,
-    fonts: Vec<FontRecord>,
-}
 
 #[derive(Debug, Serialize)]
 struct RunReport {
@@ -76,15 +73,112 @@ pub fn run_build(options: BuildOptions) -> Result<()> {
     validate_fontpaths(&options.fontpaths)?;
 
     fs::create_dir_all(&options.output)?;
-    let fonts = discover_fonts(&options.fontpaths);
-    let index = BuildIndex {
-        total_fonts: fonts.len(),
-        fonts,
-    };
+    let mut conn = db::open_and_prepare_db(&options.output)?;
 
-    let index_file = options.output.join("fonts.index.json");
-    fs::write(&index_file, serde_json::to_vec_pretty(&index)?)?;
+    // Collect all files to scan
+    let mut found_files = Vec::new();
+    for root in &options.fontpaths {
+        for entry in walkdir::WalkDir::new(root)
+            .follow_links(true)
+            .into_iter()
+            .filter_map(std::result::Result::ok)
+        {
+            let path = entry.path();
+            if !path.is_file() || !supported_font_extension(path) {
+                continue;
+            }
 
+            let abs_path = std::path::absolute(path)?;
+            let metadata = fs::metadata(path)?;
+            let size = metadata.len() as i64;
+            let mtime = metadata
+                .modified()?
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs() as i64;
+
+            found_files.push((path.to_path_buf(), abs_path, size, mtime));
+        }
+    }
+
+    let tx = conn.transaction()?;
+    {
+        let mut stmt_check = tx.prepare("SELECT mtime, file_size FROM fonts WHERE path = ?1 LIMIT 1")?;
+        let mut stmt_del = tx.prepare("DELETE FROM fonts WHERE path = ?1")?;
+        let mut stmt_ins_font = tx.prepare(
+            "INSERT INTO fonts (path, face_index, display_name, normalized_name, inferred_weight, is_italic, mtime, file_size)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)"
+        )?;
+        let mut stmt_ins_alias = tx.prepare(
+            "INSERT INTO aliases (path, face_index, alias, normalized_alias)
+             VALUES (?1, ?2, ?3, ?4)"
+        )?;
+
+        let mut current_valid_paths = std::collections::HashSet::new();
+
+        for (raw_path, abs_path, size, mtime) in found_files {
+            let abs_path_str = abs_path.to_string_lossy().to_string();
+            current_valid_paths.insert(abs_path_str.clone());
+
+            let mut rows = stmt_check.query(params![abs_path_str])?;
+            let mut matches = false;
+            if let Some(row) = rows.next()? {
+                let db_mtime: i64 = row.get(0)?;
+                let db_size: i64 = row.get(1)?;
+                if db_mtime == mtime && db_size == size {
+                    matches = true;
+                }
+            }
+
+            if matches {
+                continue;
+            }
+
+            // Delete existing records first (cascades to aliases)
+            stmt_del.execute(params![abs_path_str])?;
+
+            let mut records = discover_from_file(&raw_path);
+            for r in &mut records {
+                r.path = abs_path.clone();
+
+                stmt_ins_font.execute(params![
+                    abs_path_str,
+                    r.face_index,
+                    r.display_name,
+                    r.normalized_name,
+                    r.inferred_weight,
+                    if r.is_italic { 1 } else { 0 },
+                    mtime,
+                    size
+                ])?;
+
+                for alias in &r.aliases {
+                    stmt_ins_alias.execute(params![
+                        abs_path_str,
+                        r.face_index,
+                        alias,
+                        normalize_font_name(alias)
+                    ])?;
+                }
+            }
+        }
+
+        // Clean up files no longer existing on disk
+        let mut stmt_all_paths = tx.prepare("SELECT DISTINCT path FROM fonts")?;
+        let mut rows = stmt_all_paths.query([])?;
+        let mut paths_to_delete = Vec::new();
+        while let Some(row) = rows.next()? {
+            let db_path: String = row.get(0)?;
+            if !current_valid_paths.contains(&db_path) {
+                paths_to_delete.push(db_path);
+            }
+        }
+
+        for path in paths_to_delete {
+            stmt_del.execute(params![path])?;
+        }
+    }
+    tx.commit()?;
     Ok(())
 }
 
@@ -109,7 +203,17 @@ pub fn run_process(options: RunOptions) -> Result<()> {
         }
     }
 
-    let fonts = load_fonts_for_run(&options)?;
+    let mut requested_font_names = HashSet::new();
+    for (input, _) in &ass_files {
+        if let Ok(content) = load_and_preprocess_ass(input) {
+            let analysis = analyze_ass(&content);
+            for req in analysis.font_requests.keys() {
+                requested_font_names.insert(req.font_name.clone());
+            }
+        }
+    }
+
+    let fonts = load_fonts_for_run(&options, &requested_font_names)?;
     let font_bytes_cache: DashMap<PathBuf, Vec<u8>> = DashMap::new();
 
     let reports: Vec<RunReport> = ass_files
@@ -473,8 +577,11 @@ fn validate_fontpaths(paths: &[PathBuf]) -> Result<()> {
     Ok(())
 }
 
-fn load_fonts_for_run(options: &RunOptions) -> Result<Vec<FontRecord>> {
-    let db_fonts = load_fonts_from_db(&options.dbpath)?;
+fn load_fonts_for_run(
+    options: &RunOptions,
+    requested_names: &HashSet<String>,
+) -> Result<Vec<FontRecord>> {
+    let db_fonts = load_fonts_from_db_on_demand(&options.dbpath, requested_names)?;
     let fontpaths = options.fontpaths.as_deref().unwrap_or(&[]);
 
     if fontpaths.is_empty() {
@@ -506,19 +613,76 @@ fn load_fonts_for_run(options: &RunOptions) -> Result<Vec<FontRecord>> {
     Ok(merged)
 }
 
-fn load_fonts_from_db(dbpath: &std::path::Path) -> Result<Vec<FontRecord>> {
-    let index_file = dbpath.join("fonts.index.json");
-    if !index_file.exists() {
+fn load_fonts_from_db_on_demand(
+    dbpath: &std::path::Path,
+    requested_names: &HashSet<String>,
+) -> Result<Vec<FontRecord>> {
+    let db_file = dbpath.join("fonts.db");
+    if !db_file.exists() {
         return Ok(Vec::new());
     }
 
-    let bytes = fs::read(index_file)?;
-    let parsed: BuildIndex = serde_json::from_slice(&bytes)?;
-    Ok(parsed
-        .fonts
-        .into_iter()
-        .filter(|font| font.path.exists())
-        .collect())
+    if requested_names.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let conn = rusqlite::Connection::open(&db_file)?;
+
+    let normalized_names: Vec<String> = requested_names
+        .iter()
+        .map(|name| normalize_font_name(name))
+        .collect();
+
+    let mut records = Vec::new();
+    for chunk in normalized_names.chunks(200) {
+        let placeholders = chunk.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+        let sql = format!(
+            "SELECT DISTINCT f.path, f.face_index, f.display_name, f.normalized_name, f.inferred_weight, f.is_italic 
+             FROM fonts f
+             LEFT JOIN aliases a ON f.path = a.path AND f.face_index = a.face_index
+             WHERE f.normalized_name IN ({placeholders}) OR a.normalized_alias IN ({placeholders})"
+        );
+
+        let mut stmt = conn.prepare(&sql)?;
+
+        let mut params: Vec<&dyn rusqlite::ToSql> = Vec::with_capacity(chunk.len() * 2);
+        for val in chunk {
+            params.push(val);
+        }
+        for val in chunk {
+            params.push(val);
+        }
+
+        let mut rows = stmt.query(rusqlite::params_from_iter(params))?;
+        while let Some(row) = rows.next()? {
+            let path_str: String = row.get(0)?;
+            let face_index: u32 = row.get(1)?;
+            let display_name: String = row.get(2)?;
+            let normalized_name: String = row.get(3)?;
+            let inferred_weight: i32 = row.get(4)?;
+            let is_italic_val: i32 = row.get(5)?;
+
+            let mut stmt_aliases = conn.prepare("SELECT alias FROM aliases WHERE path = ?1 AND face_index = ?2")?;
+            let mut alias_rows = stmt_aliases.query(params![path_str, face_index])?;
+            let mut aliases = Vec::new();
+            while let Some(alias_row) = alias_rows.next()? {
+                let alias: String = alias_row.get(0)?;
+                aliases.push(alias);
+            }
+
+            records.push(FontRecord {
+                display_name,
+                normalized_name,
+                path: PathBuf::from(path_str),
+                face_index,
+                inferred_weight,
+                is_italic: is_italic_val != 0,
+                aliases,
+            });
+        }
+    }
+
+    Ok(records)
 }
 
 fn validate_output_dir(path: &std::path::Path) -> Result<()> {

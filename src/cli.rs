@@ -32,7 +32,7 @@ pub struct BuildOptions {
         short = 'o',
         long = "output",
         default_value = ".",
-        help = "Directory to write fonts.index.json"
+        help = "Directory to write fonts.db"
     )]
     pub output: PathBuf,
 }
@@ -57,7 +57,7 @@ pub struct RunOptions {
         short = 'd',
         long = "dbpath",
         default_value = ".",
-        help = "Directory containing fonts.index.json"
+        help = "Directory containing fonts.db"
     )]
     pub dbpath: PathBuf,
 

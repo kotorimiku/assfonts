@@ -2,6 +2,7 @@ mod ass;
 mod cff_fix;
 mod cli;
 mod commands;
+mod db;
 mod embed;
 mod error;
 mod font;
@@ -20,6 +21,6 @@ fn main() -> color_eyre::Result<()> {
     match cli.command {
         Some(Commands::Build(options)) => run_build(options),
         None => run_process(cli.run),
-    }?;
-    Ok(())
+    }
+    .map_err(|err| err.into_report())
 }

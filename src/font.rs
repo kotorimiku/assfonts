@@ -49,7 +49,7 @@ pub fn normalize_font_name(value: &str) -> String {
         .collect::<String>()
 }
 
-fn supported_font_extension(path: &Path) -> bool {
+pub(crate) fn supported_font_extension(path: &Path) -> bool {
     path.extension()
         .and_then(|x| x.to_str())
         .map(|ext| {
@@ -82,7 +82,7 @@ pub fn discover_fonts(fontpaths: &[PathBuf]) -> Vec<FontRecord> {
     records
 }
 
-fn discover_from_file(path: &Path) -> Vec<FontRecord> {
+pub(crate) fn discover_from_file(path: &Path) -> Vec<FontRecord> {
     let Some(stem) = path.file_stem().and_then(|x| x.to_str()) else {
         return Vec::new();
     };
