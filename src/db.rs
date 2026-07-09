@@ -120,8 +120,9 @@ fn create_tables(conn: &mut Connection) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use rusqlite::Connection;
+
+    use super::*;
 
     #[test]
     fn test_foreign_key_cascade() -> std::result::Result<(), Box<dyn std::error::Error>> {
@@ -153,7 +154,10 @@ mod tests {
             [],
             |row| row.get(0),
         )?;
-        assert_eq!(count, 1, "Without foreign_keys = ON, cascade delete should not work");
+        assert_eq!(
+            count, 1,
+            "Without foreign_keys = ON, cascade delete should not work"
+        );
 
         // 2. Test when foreign_keys is enabled, cascade delete works as expected
         let mut conn = Connection::open_in_memory()?;
@@ -183,9 +187,11 @@ mod tests {
             [],
             |row| row.get(0),
         )?;
-        assert_eq!(count, 0, "With foreign_keys = ON, cascade delete should work");
+        assert_eq!(
+            count, 0,
+            "With foreign_keys = ON, cascade delete should work"
+        );
 
         Ok(())
     }
 }
-
