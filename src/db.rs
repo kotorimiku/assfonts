@@ -6,6 +6,12 @@ use crate::error::Result;
 
 const CURRENT_SCHEMA_VERSION: i32 = 1;
 
+pub(crate) fn open_connection(db_file: &Path) -> std::result::Result<Connection, rusqlite::Error> {
+    let conn = Connection::open(db_file)?;
+    conn.execute("PRAGMA foreign_keys = ON;", [])?;
+    Ok(conn)
+}
+
 pub fn open_and_prepare_db(dbpath: &Path) -> Result<Connection> {
     let db_file = dbpath.join("fonts.db");
 
@@ -13,7 +19,7 @@ pub fn open_and_prepare_db(dbpath: &Path) -> Result<Connection> {
         match check_schema_version(&db_file) {
             Ok(true) => {
                 // Version matches! Connect.
-                return Ok(Connection::open(&db_file)?);
+                return Ok(open_connection(&db_file)?);
             }
             _ => {
                 // Outdated, corrupt, or table missing. Rebuild.
@@ -23,13 +29,13 @@ pub fn open_and_prepare_db(dbpath: &Path) -> Result<Connection> {
     }
 
     // Connect and build tables
-    let mut conn = Connection::open(&db_file)?;
+    let mut conn = open_connection(&db_file)?;
     create_tables(&mut conn)?;
     Ok(conn)
 }
 
 fn check_schema_version(db_file: &Path) -> std::result::Result<bool, rusqlite::Error> {
-    let conn = Connection::open(db_file)?;
+    let conn = open_connection(db_file)?;
 
     // Check if meta table exists and version matches
     let table_exists: i32 = conn.query_row(
@@ -111,3 +117,75 @@ fn create_tables(conn: &mut Connection) -> Result<()> {
     tx.commit()?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rusqlite::Connection;
+
+    #[test]
+    fn test_foreign_key_cascade() -> std::result::Result<(), Box<dyn std::error::Error>> {
+        // 1. Test when foreign_keys is disabled (explicitly set to OFF), deleting a font won't cascade delete its aliases
+        let mut conn = Connection::open_in_memory()?;
+        conn.execute("PRAGMA foreign_keys = OFF;", [])?;
+        create_tables(&mut conn)?;
+
+        // Insert font
+        conn.execute(
+            "INSERT INTO fonts (path, face_index, display_name, normalized_name, inferred_weight, is_italic, mtime, file_size)
+             VALUES ('/path/to/font.ttf', 0, 'Test Font', 'testfont', 400, 0, 100, 100)",
+            [],
+        )?;
+
+        // Insert alias
+        conn.execute(
+            "INSERT INTO aliases (path, face_index, alias, normalized_alias)
+             VALUES ('/path/to/font.ttf', 0, 'Test Font Alias', 'testfontalias')",
+            [],
+        )?;
+
+        // Delete font
+        conn.execute("DELETE FROM fonts WHERE path = '/path/to/font.ttf'", [])?;
+
+        // Check if the alias still exists (it should, because foreign_keys = OFF)
+        let count: i32 = conn.query_row(
+            "SELECT count(*) FROM aliases WHERE path = '/path/to/font.ttf'",
+            [],
+            |row| row.get(0),
+        )?;
+        assert_eq!(count, 1, "Without foreign_keys = ON, cascade delete should not work");
+
+        // 2. Test when foreign_keys is enabled, cascade delete works as expected
+        let mut conn = Connection::open_in_memory()?;
+        conn.execute("PRAGMA foreign_keys = ON;", [])?;
+        create_tables(&mut conn)?;
+
+        // Insert font
+        conn.execute(
+            "INSERT INTO fonts (path, face_index, display_name, normalized_name, inferred_weight, is_italic, mtime, file_size)
+             VALUES ('/path/to/font.ttf', 0, 'Test Font', 'testfont', 400, 0, 100, 100)",
+            [],
+        )?;
+
+        // Insert alias
+        conn.execute(
+            "INSERT INTO aliases (path, face_index, alias, normalized_alias)
+             VALUES ('/path/to/font.ttf', 0, 'Test Font Alias', 'testfontalias')",
+            [],
+        )?;
+
+        // Delete font
+        conn.execute("DELETE FROM fonts WHERE path = '/path/to/font.ttf'", [])?;
+
+        // Check if the alias still exists (it should be deleted by cascade)
+        let count: i32 = conn.query_row(
+            "SELECT count(*) FROM aliases WHERE path = '/path/to/font.ttf'",
+            [],
+            |row| row.get(0),
+        )?;
+        assert_eq!(count, 0, "With foreign_keys = ON, cascade delete should work");
+
+        Ok(())
+    }
+}
+

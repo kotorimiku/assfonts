@@ -626,7 +626,7 @@ fn load_fonts_from_db_on_demand(
         return Ok(Vec::new());
     }
 
-    let conn = rusqlite::Connection::open(&db_file)?;
+    let conn = crate::db::open_connection(&db_file)?;
 
     let normalized_names: Vec<String> = requested_names
         .iter()
