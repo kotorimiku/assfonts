@@ -16,7 +16,7 @@ pub enum AssfontsError {
     #[error("font path does not exist: {0}")]
     MissingFontPath(PathBuf),
 
-    #[error("no font source available: provide --fontpath or a valid fonts.index.json in {0}")]
+    #[error("no font source available: provide --fontpath or a valid fonts.db in {0}")]
     MissingFontSource(PathBuf),
 
     #[error("output directory is invalid: {0}")]

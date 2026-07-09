@@ -42,7 +42,7 @@
 | `-i, --input` | (required) | Input ASS files (one or more) |
 | `-o, --output` | `.` | Output directory |
 | `-f, --fontpath` | (optional) | Font directories to scan |
-| `-d, --dbpath` | `.` | Directory containing `fonts.index.json` |
+| `-d, --dbpath` | `.` | Directory containing `fonts.db` |
 | `--strict` | `true` | Fail on font usage errors |
 | `--report` | `false` | Generate `run-report.json` after processing |
 | `--force` | `false` | Overwrite existing output files |
@@ -52,7 +52,7 @@
 | Flag | Default | Description |
 |------|---------|-------------|
 | `-f, --fontpath` | (required) | Font directories to scan (one or more) |
-| `-d, --dbpath` | `.` | Output directory for `fonts.index.json` |
+| `-d, --dbpath` | `.` | Output directory for `fonts.db` |
 
 ## Output Structure
 

@@ -33,11 +33,11 @@ Build a font index file for fast font lookups:
 assfonts build -f /path/to/fonts -d /path/to/db
 ```
 
-This creates `fonts.index.json` in the specified directory.
+This creates `fonts.db` in the specified directory.
 
 Options:
 - `-f, --fontpath`: Font directories to scan (required, supports multiple paths)
-- `-o, --output`: Output directory for `fonts.index.json` (default: current directory)
+- `-o, --output`: Output directory for `fonts.db` (default: current directory)
 
 ### Process ASS Files
 
@@ -57,7 +57,7 @@ Options:
 - `-i, --input`: Input ASS files or directories (required, supports multiple paths)
 - `-o, --output`: Output directory (default: current directory)
 - `-f, --fontpath`: Font directories to scan (optional)
-- `-d, --dbpath`: Directory containing `fonts.index.json` (default: current directory)
+- `-d, --dbpath`: Directory containing `fonts.db` (default: current directory)
 - `-s, --strict`: Fail on font usage errors (default: true)
 - `--allow-missing-sample`: Allow missing character samples
 - `--allow-missing-fonts`: Allow missing fonts

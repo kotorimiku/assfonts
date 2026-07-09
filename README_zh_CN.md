@@ -33,11 +33,11 @@ cargo build --release
 assfonts build -f /path/to/fonts -d /path/to/db
 ```
 
-这将在指定目录中创建 `fonts.index.json` 文件。
+这将在指定目录中创建 `fonts.db` 文件。
 
 参数：
 - `-f, --fontpath`：要扫描的字体目录（必需，支持多个路径）
-- `-o, --output`：`fonts.index.json` 的输出目录（默认：当前目录）
+- `-o, --output`：`fonts.db` 的输出目录（默认：当前目录）
 
 ### 处理 ASS 文件
 
@@ -57,7 +57,7 @@ assfonts -i /path/to/ass/files -o output_dir -f /path/to/fonts -d /path/to/db
 - `-i, --input`：输入 ASS 文件或目录（必需，支持多个路径）
 - `-o, --output`：输出目录（默认：当前目录）
 - `-f, --fontpath`：要扫描的字体目录（可选）
-- `-d, --dbpath`：包含 `fonts.index.json` 的目录（默认：当前目录）
+- `-d, --dbpath`：包含 `fonts.db` 的目录（默认：当前目录）
 - `-s, --strict`：遇到字体错误时失败（默认：true）
 - `--allow-missing-sample`：允许缺失字符样本
 - `--allow-missing-fonts`：允许缺失字体
